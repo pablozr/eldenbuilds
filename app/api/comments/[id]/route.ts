@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { commentService } from "@/lib/services/comment-service";
 import { prisma } from "@/lib/prisma";
+import { withCsrf } from "@/lib/middlewares/with-csrf";
+import { withRateLimit } from "@/lib/middlewares/with-rate-limit";
+import { sanitizeInput } from "@/lib/utils/sanitize";
 
 // PUT (update) a comment
-export async function PUT(
+export const PUT = withRateLimit(withCsrf(async (
   req: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const { userId } = await auth();
 
@@ -60,10 +63,13 @@ export async function PUT(
       );
     }
 
-    // Update the comment
+    // Sanitize the comment content to prevent XSS
+    const sanitizedContent = sanitizeInput(body.content);
+
+    // Update the comment with sanitized content
     const updatedComment = await prisma.comment.update({
       where: { id: commentId },
-      data: { content: body.content },
+      data: { content: sanitizedContent },
       include: {
         user: {
           select: {
@@ -96,13 +102,16 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 5,  // 5 comment updates per minute
+  windowMs: 60 * 1000  // 1 minute
+});
 
 // DELETE a comment
-export async function DELETE(
+export const DELETE = withRateLimit(withCsrf(async (
   req: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const { userId } = await auth();
 
@@ -173,4 +182,7 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 5,  // 5 comment deletions per minute
+  windowMs: 60 * 1000  // 1 minute
+});

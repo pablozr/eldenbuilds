@@ -4,9 +4,15 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { z } from 'zod';
+import { useUser } from '@clerk/nextjs';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Schema de validação para o formulário de perfil
 const profileFormSchema = z.object({
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   bio: z.string().max(500, "Bio must be 500 characters or less").optional(),
   favoriteClass: z.string().max(50, "Class name must be 50 characters or less").optional(),
   favoriteWeapon: z.string().max(50, "Weapon name must be 50 characters or less").optional(),
@@ -28,9 +34,12 @@ interface ProfileSettingsProps {
 
 export default function ProfileSettings({ user }: ProfileSettingsProps) {
   const router = useRouter();
+  const { user: clerkUser, isLoaded: isClerkUserLoaded } = useUser();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [formValues, setFormValues] = useState<ProfileFormValues>({
+    username: user.username,
     bio: user.bio || '',
     favoriteClass: user.favoriteClass || '',
     favoriteWeapon: user.favoriteWeapon || '',
@@ -39,9 +48,13 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
   const [bannerImage, setBannerImage] = useState<string | null>(user.bannerUrl || null);
   const [errors, setErrors] = useState<Partial<Record<keyof ProfileFormValues, string>>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState(true);
+  const [usernameChanged, setUsernameChanged] = useState(false);
 
   const profileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const usernameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Classes do Elden Ring
   const classes = [
@@ -56,11 +69,51 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
     "Wing of Astel", "Hand of Malenia", "Starscourge Greatsword"
   ];
 
+  const checkUsernameAvailability = async (username: string) => {
+    if (username === user.username) {
+      setUsernameAvailable(true);
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    try {
+      const response = await fetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
+      const data = await response.json();
+      setUsernameAvailable(data.available);
+
+      if (!data.available) {
+        setErrors((prev) => ({
+          ...prev,
+          username: "Username is already taken"
+        }));
+      }
+    } catch (error) {
+      console.error('Error checking username availability:', error);
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormValues((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: undefined }));
     setSuccessMessage(null);
+
+    // If username is changed, check availability after a delay
+    if (name === 'username' && value !== user.username) {
+      setUsernameChanged(true);
+
+      // Clear any existing timeout
+      if (usernameTimeoutRef.current) {
+        clearTimeout(usernameTimeoutRef.current);
+      }
+
+      // Set a new timeout to check username availability
+      usernameTimeoutRef.current = setTimeout(() => {
+        checkUsernameAvailability(value);
+      }, 500);
+    }
   };
 
   const handleProfileImageClick = () => {
@@ -87,6 +140,7 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
       formData.append('file', file);
       formData.append('type', type);
 
+      // 1. Upload the image to Supabase storage
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -98,26 +152,52 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
       }
 
       const data = await response.json();
+      const imageUrl = data.url;
 
       if (type === 'profile') {
-        setProfileImage(data.url);
+        setProfileImage(imageUrl);
+
+        // 2. Also update the Clerk user profile image directly
+        if (isClerkUserLoaded && clerkUser) {
+          try {
+            // First, fetch the image as a blob
+            const imageResponse = await fetch(imageUrl);
+            const imageBlob = await imageResponse.blob();
+
+            // Use the Clerk frontend API to set the profile image
+            await clerkUser.setProfileImage({ file: imageBlob });
+            console.log('Clerk profile image updated successfully');
+          } catch (clerkError) {
+            console.warn('Failed to update Clerk profile image:', clerkError);
+          }
+        } else {
+          console.warn('Clerk user not loaded, skipping profile image update in Clerk');
+        }
       } else {
-        setBannerImage(data.url);
+        setBannerImage(imageUrl);
       }
 
-      // Update the user profile with the new image URL
+      // 3. Update the user profile in our database
       await fetch('/api/users/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          [type === 'profile' ? 'imageUrl' : 'bannerUrl']: data.url,
+          [type === 'profile' ? 'imageUrl' : 'bannerUrl']: imageUrl,
         }),
       });
 
-      setSuccessMessage(`${type === 'profile' ? 'Profile' : 'Banner'} image updated successfully!`);
-      router.refresh();
+      // Invalidate the userProfile query to force a refetch
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+
+      // Adicionar um pequeno atraso antes de mostrar a mensagem de sucesso e atualizar a página
+      setTimeout(() => {
+        setSuccessMessage(`${type === 'profile' ? 'Profile' : 'Banner'} image updated successfully!`);
+
+        // Forçar uma atualização completa da página para garantir que as imagens sejam recarregadas
+        window.location.reload();
+      }, 500);
     } catch (error) {
       console.error(`Error uploading ${type} image:`, error);
       setSuccessMessage(`Error: ${error instanceof Error ? error.message : 'Failed to upload image'}`);
@@ -135,6 +215,19 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
       // Validar os dados do formulário
       const validatedData = profileFormSchema.parse(formValues);
 
+      // Verificar se o nome de usuário foi alterado e se está disponível
+      if (validatedData.username !== user.username) {
+        // Verificar a disponibilidade do nome de usuário
+        const response = await fetch(`/api/users/check-username?username=${encodeURIComponent(validatedData.username)}`);
+        const data = await response.json();
+
+        if (!data.available) {
+          setErrors((prev) => ({ ...prev, username: "Username is already taken" }));
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Enviar os dados para a API
       const response = await fetch('/api/users/profile', {
         method: 'PATCH',
@@ -145,8 +238,17 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errorData = await response.json();
+        if (errorData.error === "Username already taken") {
+          setErrors((prev) => ({ ...prev, username: "Username is already taken" }));
+          throw new Error('Username already taken');
+        } else {
+          throw new Error('Failed to update profile');
+        }
       }
+
+      // Invalidate the userProfile query to force a refetch
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
 
       // Exibir mensagem de sucesso
       setSuccessMessage('Profile updated successfully!');
@@ -185,6 +287,39 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
 
       <div className="p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Username */}
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-foreground/80 mb-1">
+              Username
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-foreground/50">
+                @
+              </span>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                value={formValues.username}
+                onChange={handleChange}
+                className="w-full pl-8 px-3 py-2 bg-background/50 border border-primary/20 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 text-sm"
+                placeholder="username"
+              />
+            </div>
+            {errors.username && (
+              <p className="mt-1 text-red-500 text-xs">{errors.username}</p>
+            )}
+            {isCheckingUsername && (
+              <p className="mt-1 text-primary/70 text-xs">Checking username availability...</p>
+            )}
+            {usernameChanged && !errors.username && usernameAvailable && formValues.username !== user.username && (
+              <p className="mt-1 text-green-500 text-xs">Username is available</p>
+            )}
+            <p className="mt-1 text-xs text-foreground/50">
+              Your username is unique and will be displayed as @{formValues.username}
+            </p>
+          </div>
+
           {/* Profile Image Upload */}
           <div>
             <label className="block text-sm font-medium text-foreground/80 mb-2">

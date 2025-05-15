@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { commentService } from "@/lib/services/comment-service";
 import { commentFormSchema } from "@/lib/validations/build";
 import { prisma } from "@/lib/prisma";
+import { sanitizeInput } from "@/lib/utils/sanitize";
+import { withRateLimit } from "@/lib/middlewares/with-rate-limit";
 
 // GET comments for a build
 export async function GET(
@@ -23,10 +25,8 @@ export async function GET(
 }
 
 // POST a new comment
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const POST = withRateLimit(
+  async (req: NextRequest, { params }: { params: { id: string } }) => {
   try {
     const { userId } = await auth();
 
@@ -72,10 +72,13 @@ export async function POST(
       );
     }
 
-    // Create the comment
+    // Sanitize the comment content to prevent XSS
+    const sanitizedContent = sanitizeInput(validatedData.content);
+
+    // Create the comment with sanitized content
     const comment = await prisma.comment.create({
       data: {
-        content: validatedData.content,
+        content: sanitizedContent,
         userId: dbUser.id,
         buildId,
       },
@@ -110,4 +113,7 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+}, {
+  maxRequests: 5,  // 5 comments per minute
+  windowMs: 60 * 1000  // 1 minute
+});

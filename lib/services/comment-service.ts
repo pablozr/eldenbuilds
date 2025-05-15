@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { CommentFormValues } from '@/lib/validations/build';
+import { sanitizeInput } from '@/lib/utils/sanitize';
 
 /**
  * Serviço para gerenciar comentários
@@ -9,7 +10,7 @@ export const commentService = {
    * Busca comentários de uma build específica
    */
   async getCommentsByBuildId(buildId: string) {
-    return prisma.comment.findMany({
+    const comments = await prisma.comment.findMany({
       where: {
         buildId,
       },
@@ -26,6 +27,12 @@ export const commentService = {
         createdAt: 'desc',
       },
     });
+
+    // Sanitize comment content to prevent XSS when displaying
+    return comments.map(comment => ({
+      ...comment,
+      content: sanitizeInput(comment.content)
+    }));
   },
 
   /**
@@ -50,10 +57,13 @@ export const commentService = {
       throw new Error('Build not found');
     }
 
-    // Cria o comentário
+    // Sanitize the comment content to prevent XSS
+    const sanitizedContent = sanitizeInput(data.content);
+
+    // Cria o comentário com conteúdo sanitizado
     return prisma.comment.create({
       data: {
-        content: data.content,
+        content: sanitizedContent,
         buildId: data.buildId,
         userId: user.id,
       },
@@ -96,11 +106,14 @@ export const commentService = {
       throw new Error('Unauthorized');
     }
 
-    // Atualiza o comentário
+    // Sanitize the comment content to prevent XSS
+    const sanitizedContent = sanitizeInput(content);
+
+    // Atualiza o comentário com conteúdo sanitizado
     return prisma.comment.update({
       where: { id },
       data: {
-        content,
+        content: sanitizedContent,
       },
       include: {
         user: {

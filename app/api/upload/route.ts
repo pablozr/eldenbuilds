@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadImage } from "@/lib/supabase";
 import { currentUser } from "@clerk/nextjs/server";
+import { initializeStorage } from "@/lib/utils/storage-init";
 
 export async function POST(req: NextRequest) {
   try {

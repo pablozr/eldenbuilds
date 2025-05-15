@@ -3,18 +3,45 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { profileService } from "@/lib/services/profile-service";
 import { z } from "zod";
+import { withCsrf } from "@/lib/middlewares/with-csrf";
+import { withRateLimit } from "@/lib/middlewares/with-rate-limit";
+import { sanitizeObject } from "@/lib/utils/sanitize";
 
 // Schema de validação para atualização de perfil
 const profileUpdateSchema = z.object({
-  bio: z.string().optional(),
-  favoriteClass: z.string().optional(),
-  favoriteWeapon: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  bannerUrl: z.string().url().optional(),
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
+    .optional(),
+  bio: z.string()
+    .max(500, "Bio must be 500 characters or less")
+    .transform(val => val?.trim())
+    .optional(),
+  favoriteClass: z.string()
+    .max(50, "Class name must be 50 characters or less")
+    .transform(val => val?.trim())
+    .optional(),
+  favoriteWeapon: z.string()
+    .max(50, "Weapon name must be 50 characters or less")
+    .transform(val => val?.trim())
+    .optional(),
+  imageUrl: z.string()
+    .url("Image URL must be a valid URL")
+    .refine(url => url.startsWith('https://'), {
+      message: "Image URL must use HTTPS for security"
+    })
+    .optional(),
+  bannerUrl: z.string()
+    .url("Banner URL must be a valid URL")
+    .refine(url => url.startsWith('https://'), {
+      message: "Banner URL must use HTTPS for security"
+    })
+    .optional(),
 });
 
 // GET - Obter perfil do usuário atual
-export async function GET(req: NextRequest) {
+export const GET = withRateLimit(async (req: NextRequest) => {
   try {
     const { userId } = await auth();
 
@@ -117,10 +144,13 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, {
+  maxRequests: 15,  // 15 profile requests per minute
+  windowMs: 60 * 1000  // 1 minute
+});
 
 // PATCH - Atualizar perfil do usuário
-export async function PATCH(req: NextRequest) {
+export const PATCH = withRateLimit(withCsrf(async (req: NextRequest) => {
   try {
     const { userId } = await auth();
 
@@ -147,14 +177,39 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const validatedData = profileUpdateSchema.parse(body);
 
-    // Atualizar o perfil do usuário
-    const updatedProfile = await profileService.updateUserProfile(user.id, validatedData);
+    // Sanitize user input to prevent XSS
+    const sanitizedData = sanitizeObject(validatedData);
+
+    // Se o usuário está tentando atualizar o nome de usuário, verificar se está disponível
+    if (sanitizedData.username && sanitizedData.username !== user.username) {
+      // Verificar se o nome de usuário já está em uso
+      const existingUser = await prisma.user.findUnique({
+        where: { username: sanitizedData.username },
+        select: { id: true }
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Username already taken" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Atualizar o perfil do usuário com dados sanitizados
+    const updatedProfile = await profileService.updateUserProfile(user.id, sanitizedData);
+
+    // Buscar o usuário atualizado para obter o nome de usuário mais recente
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { username: true }
+    });
 
     return NextResponse.json({
       id: user.id,
-      username: user.username,
+      username: updatedUser?.username || user.username,
       name: user.name,
-      imageUrl: user.imageUrl,
+      imageUrl: updatedProfile.imageUrl || user.imageUrl,
       bannerUrl: updatedProfile.bannerUrl,
       bio: updatedProfile.bio,
       favoriteClass: updatedProfile.favoriteClass,
@@ -175,4 +230,7 @@ export async function PATCH(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 5,  // 5 profile updates per minute
+  windowMs: 60 * 1000  // 1 minute
+});

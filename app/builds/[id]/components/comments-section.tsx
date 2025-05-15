@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import { withCsrfToken } from '@/app/components/csrf-provider';
 
 interface Comment {
   id: string;
@@ -45,9 +46,9 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
     try {
       const response = await fetch(`/api/builds/${buildId}/comments`, {
         method: 'POST',
-        headers: {
+        headers: withCsrfToken({
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({ content: newComment }),
       });
 
@@ -74,9 +75,9 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
     try {
       const response = await fetch(`/api/comments/${commentId}`, {
         method: 'PUT',
-        headers: {
+        headers: withCsrfToken({
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({ content: editContent }),
       });
 
@@ -105,6 +106,7 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
     try {
       const response = await fetch(`/api/comments/${commentId}`, {
         method: 'DELETE',
+        headers: withCsrfToken(),
       });
 
       if (!response.ok) {

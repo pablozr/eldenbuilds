@@ -14,13 +14,13 @@ export const profileService = {
       return null;
     }
 
-    // Buscar o perfil do usuário no banco de dados
-    const profile = await prisma.$queryRaw<any[]>`
-      SELECT * FROM "public"."UserProfile" WHERE "userId" = ${userId} LIMIT 1
-    `;
+    // Buscar o perfil do usuário no banco de dados usando Prisma em vez de SQL raw
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+    });
 
     // Se o perfil não existir, retornar apenas os dados do usuário
-    if (!profile || profile.length === 0) {
+    if (!profile) {
       return {
         ...user,
         bio: null,
@@ -33,10 +33,10 @@ export const profileService = {
     // Retornar o usuário com os dados do perfil
     return {
       ...user,
-      bio: profile[0].bio,
-      bannerUrl: profile[0].bannerUrl,
-      favoriteClass: profile[0].favoriteClass,
-      favoriteWeapon: profile[0].favoriteWeapon,
+      bio: profile.bio,
+      bannerUrl: profile.bannerUrl,
+      favoriteClass: profile.favoriteClass,
+      favoriteWeapon: profile.favoriteWeapon,
     };
   },
 
@@ -44,10 +44,12 @@ export const profileService = {
    * Atualizar o perfil de um usuário
    */
   async updateUserProfile(userId: string, data: {
+    username?: string;
     bio?: string;
     bannerUrl?: string;
     favoriteClass?: string;
     favoriteWeapon?: string;
+    imageUrl?: string;
   }) {
     // Verificar se o usuário existe
     const user = await prisma.user.findUnique({
@@ -59,55 +61,87 @@ export const profileService = {
     }
 
     try {
+      // Se tiver imageUrl ou username, atualizar na tabela User
+      if (data.imageUrl !== undefined || data.username !== undefined) {
+        const updateData: any = {
+          updatedAt: new Date()
+        };
+
+        if (data.imageUrl !== undefined) {
+          updateData.imageUrl = data.imageUrl;
+        }
+
+        if (data.username !== undefined) {
+          updateData.username = data.username;
+        }
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: updateData,
+        });
+
+        if (data.imageUrl !== undefined) {
+          console.log(`Updated User.imageUrl to ${data.imageUrl} for user ${userId}`);
+        }
+
+        if (data.username !== undefined) {
+          console.log(`Updated User.username to ${data.username} for user ${userId}`);
+        }
+      }
+
       // Verificar se o perfil já existe
-      const existingProfile = await prisma.$queryRaw<any[]>`
-        SELECT * FROM "public"."UserProfile" WHERE "userId" = ${userId} LIMIT 1
-      `;
+      const existingProfile = await prisma.userProfile.findUnique({
+        where: { userId }
+      });
 
-      if (existingProfile && existingProfile.length > 0) {
+      if (existingProfile) {
         // Atualizar o perfil existente
-        await prisma.$executeRaw`
-          UPDATE "public"."UserProfile"
-          SET
-            "bio" = ${data.bio !== undefined ? data.bio : existingProfile[0].bio},
-            "bannerUrl" = ${data.bannerUrl !== undefined ? data.bannerUrl : existingProfile[0].bannerUrl},
-            "favoriteClass" = ${data.favoriteClass !== undefined ? data.favoriteClass : existingProfile[0].favoriteClass},
-            "favoriteWeapon" = ${data.favoriteWeapon !== undefined ? data.favoriteWeapon : existingProfile[0].favoriteWeapon},
-            "updatedAt" = CURRENT_TIMESTAMP
-          WHERE "userId" = ${userId}
-        `;
+        const updatedProfile = await prisma.userProfile.update({
+          where: { userId },
+          data: {
+            bio: data.bio !== undefined ? data.bio : existingProfile.bio,
+            bannerUrl: data.bannerUrl !== undefined ? data.bannerUrl : existingProfile.bannerUrl,
+            favoriteClass: data.favoriteClass !== undefined ? data.favoriteClass : existingProfile.favoriteClass,
+            favoriteWeapon: data.favoriteWeapon !== undefined ? data.favoriteWeapon : existingProfile.favoriteWeapon,
+            updatedAt: new Date()
+          }
+        });
 
-        // Buscar o perfil atualizado
-        const updatedProfile = await prisma.$queryRaw<any[]>`
-          SELECT * FROM "public"."UserProfile" WHERE "userId" = ${userId} LIMIT 1
-        `;
+        // Buscar o usuário atualizado (para obter o imageUrl mais recente)
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: userId },
+        });
 
         return {
-          ...user,
-          bio: updatedProfile[0].bio,
-          bannerUrl: updatedProfile[0].bannerUrl,
-          favoriteClass: updatedProfile[0].favoriteClass,
-          favoriteWeapon: updatedProfile[0].favoriteWeapon,
+          ...updatedUser,
+          bio: updatedProfile.bio,
+          bannerUrl: updatedProfile.bannerUrl,
+          favoriteClass: updatedProfile.favoriteClass,
+          favoriteWeapon: updatedProfile.favoriteWeapon,
         };
       } else {
-        // Criar um novo perfil
-        const profileId = `profile_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        // Criar um novo perfil usando Prisma em vez de SQL raw
+        const newProfile = await prisma.userProfile.create({
+          data: {
+            bio: data.bio || null,
+            bannerUrl: data.bannerUrl || null,
+            favoriteClass: data.favoriteClass || null,
+            favoriteWeapon: data.favoriteWeapon || null,
+            userId: userId
+          }
+        });
 
-        await prisma.$executeRaw`
-          INSERT INTO "public"."UserProfile" (
-            "id", "bio", "bannerUrl", "favoriteClass", "favoriteWeapon", "userId"
-          ) VALUES (
-            ${profileId}, ${data.bio || null}, ${data.bannerUrl || null},
-            ${data.favoriteClass || null}, ${data.favoriteWeapon || null}, ${userId}
-          )
-        `;
+        // Buscar o usuário atualizado
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: userId },
+        });
 
         return {
-          ...user,
-          bio: data.bio || null,
-          bannerUrl: data.bannerUrl || null,
-          favoriteClass: data.favoriteClass || null,
-          favoriteWeapon: data.favoriteWeapon || null,
+          ...updatedUser,
+          bio: newProfile.bio,
+          bannerUrl: newProfile.bannerUrl,
+          favoriteClass: newProfile.favoriteClass,
+          favoriteWeapon: newProfile.favoriteWeapon,
         };
       }
     } catch (error) {

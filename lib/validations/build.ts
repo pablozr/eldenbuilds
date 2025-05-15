@@ -23,18 +23,24 @@ export const buildFormSchema = z.object({
   title: z
     .string()
     .min(3, { message: "Title must be at least 3 characters" })
-    .max(100, { message: "Title must be less than 100 characters" }),
+    .max(100, { message: "Title must be less than 100 characters" })
+    .transform(val => val.trim())
+    .refine(val => !/^\s*$/.test(val), { message: "Title cannot be empty or just whitespace" }),
   description: z
     .string()
     .min(10, { message: "Description must be at least 10 characters" })
-    .max(1000, { message: "Description must be less than 1000 characters" }),
+    .max(1000, { message: "Description must be less than 1000 characters" })
+    .transform(val => val.trim())
+    .refine(val => !/^\s*$/.test(val), { message: "Description cannot be empty or just whitespace" }),
   level: z
     .number()
     .int()
     .min(1, { message: "Level must be at least 1" })
     .max(713, { message: "Level must be less than 713" }),
   buildType: z
-    .enum(buildTypes)
+    .enum(buildTypes, {
+      errorMap: () => ({ message: "Please select a valid build type" })
+    })
     .optional()
     .nullable(),
 
@@ -97,8 +103,10 @@ export const commentFormSchema = z.object({
   content: z
     .string()
     .min(3, { message: "Comment must be at least 3 characters" })
-    .max(500, { message: "Comment must be less than 500 characters" }),
-  buildId: z.string(),
+    .max(500, { message: "Comment must be less than 500 characters" })
+    .transform(val => val.trim())
+    .refine(val => !/^\s*$/.test(val), { message: "Comment cannot be empty or just whitespace" }),
+  buildId: z.string().uuid({ message: "Invalid build ID format" }),
 });
 
 // Type for the comment form

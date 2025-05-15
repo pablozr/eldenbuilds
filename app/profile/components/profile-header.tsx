@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from "next/image";
 import { UserButton } from "@clerk/nextjs";
 
@@ -17,16 +18,27 @@ interface ProfileHeaderProps {
 }
 
 export default function ProfileHeader({ user }: ProfileHeaderProps) {
+  // Usar estado local para o banner para forçar a atualização
+  const [bannerUrl, setBannerUrl] = useState<string | null>(user.bannerUrl || null);
+
+  // Atualizar o estado quando as props mudarem
+  useEffect(() => {
+    if (user.bannerUrl !== bannerUrl) {
+      setBannerUrl(user.bannerUrl || null);
+    }
+  }, [user.bannerUrl, bannerUrl]);
+
   return (
     <div className="rounded-lg border border-primary/20 bg-card/30 backdrop-blur-sm shadow-[0_0_15px_rgba(200,170,110,0.07)] overflow-hidden">
       {/* Banner */}
       <div className="h-48 bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5 relative">
-        {user.bannerUrl ? (
+        {bannerUrl ? (
           <Image
-            src={user.bannerUrl}
+            src={bannerUrl}
             alt={`${user.username}'s banner`}
             fill
             className="object-cover"
+            key={`banner-${bannerUrl}`} // Adicionar key para forçar a recriação do componente
           />
         ) : (
           <div className="absolute inset-0 bg-[url('/profile-banner.jpg')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
@@ -45,6 +57,7 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
                 width={96}
                 height={96}
                 className="w-full h-full object-cover"
+                key={`avatar-${user.imageUrl}`} // Adicionar key para forçar a recriação do componente
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-2xl font-bold">

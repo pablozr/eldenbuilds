@@ -5,9 +5,12 @@ import { buildFormSchema } from "@/lib/validations/build";
 import { buildService, BuildSortOption } from "@/lib/services/build-service";
 import { authService } from "@/lib/services/auth-service";
 import { ClerkUser } from "@/types/clerk";
+import { withCsrf } from "@/lib/middlewares/with-csrf";
+import { withRateLimit } from "@/lib/middlewares/with-rate-limit";
+import { sanitizeObject } from "@/lib/utils/sanitize";
 
 // GET all builds
-export async function GET(req: NextRequest) {
+export const GET = withRateLimit(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url);
 
@@ -43,10 +46,13 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, {
+  maxRequests: 20,  // 20 requests per minute (more permissive for read operations)
+  windowMs: 60 * 1000  // 1 minute
+});
 
 // POST a new build
-export async function POST(req: NextRequest) {
+export const POST = withRateLimit(withCsrf(async (req: NextRequest) => {
   try {
     const clerkUser = await currentUser();
 
@@ -98,8 +104,11 @@ export async function POST(req: NextRequest) {
     try {
       const validatedData = buildFormSchema.parse(body);
 
-      // Create the build using the service
-      const build = await buildService.createBuild(validatedData, clerkUser.id);
+      // Sanitize user input to prevent XSS
+      const sanitizedData = sanitizeObject(validatedData);
+
+      // Create the build using the service with sanitized data
+      const build = await buildService.createBuild(sanitizedData, clerkUser.id);
 
       return NextResponse.json(build, { status: 201 });
     } catch (e) {
@@ -127,4 +136,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 3,  // 3 build creations per minute
+  windowMs: 60 * 1000  // 1 minute
+});

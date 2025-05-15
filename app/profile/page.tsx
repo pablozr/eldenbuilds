@@ -3,6 +3,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { profileService } from "@/lib/services/profile-service";
 import ProfileHeader from "./components/profile-header";
 import ProfileStats from "@/app/profile/components/profile-stats";
 import ProfileBuilds from "@/app/profile/components/profile-builds";
@@ -39,6 +40,18 @@ export default async function ProfilePage() {
       </div>
     );
   }
+
+  // Buscar o perfil completo do usuário (incluindo bannerUrl)
+  const userProfile = await profileService.getUserProfile(user.id);
+
+  // Combinar os dados do usuário com os dados do perfil
+  const userWithProfile = {
+    ...user,
+    bannerUrl: userProfile?.bannerUrl || null,
+    bio: userProfile?.bio || null,
+    favoriteClass: userProfile?.favoriteClass || null,
+    favoriteWeapon: userProfile?.favoriteWeapon || null,
+  };
 
   // Buscar estatísticas do usuário
   const buildCount = await prisma.build.count({
@@ -164,7 +177,7 @@ export default async function ProfilePage() {
           <div className="max-w-5xl mx-auto">
             {/* Profile Header */}
             <ProfileHeader
-              user={user}
+              user={userWithProfile}
             />
 
 
@@ -196,7 +209,7 @@ export default async function ProfilePage() {
               {/* Profile Settings */}
               <div className="lg:col-span-1">
                 <ProfileSettings
-                  user={user}
+                  user={userWithProfile}
                 />
               </div>
             </div>

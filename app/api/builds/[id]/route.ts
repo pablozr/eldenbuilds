@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs";
 import { buildFormSchema } from "@/lib/validations/build";
 import { buildService } from "@/lib/services/build-service";
+import { withCsrf } from "@/lib/middlewares/with-csrf";
+import { withRateLimit } from "@/lib/middlewares/with-rate-limit";
+import { sanitizeObject } from "@/lib/utils/sanitize";
 
 // GET a specific build
 export async function GET(
@@ -29,10 +32,10 @@ export async function GET(
 }
 
 // PUT (update) a build
-export async function PUT(
+export const PUT = withRateLimit(withCsrf(async (
   req: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const user = await currentUser();
     const userId = user?.id;
@@ -49,8 +52,11 @@ export async function PUT(
     // Validate the request body
     const validatedData = buildFormSchema.parse(body);
 
-    // Update the build using the service
-    const updatedBuild = await buildService.updateBuild(params.id, validatedData, userId);
+    // Sanitize user input to prevent XSS
+    const sanitizedData = sanitizeObject(validatedData);
+
+    // Update the build using the service with sanitized data
+    const updatedBuild = await buildService.updateBuild(params.id, sanitizedData, userId);
 
     return NextResponse.json(updatedBuild);
   } catch (error) {
@@ -73,13 +79,16 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 5,  // 5 build updates per minute
+  windowMs: 60 * 1000  // 1 minute
+});
 
 // DELETE a build
-export async function DELETE(
+export const DELETE = withRateLimit(withCsrf(async (
   req: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const user = await currentUser();
     const userId = user?.id;
@@ -115,4 +124,7 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+}), {
+  maxRequests: 3,  // 3 build deletions per minute (more restrictive)
+  windowMs: 60 * 1000  // 1 minute
+});

@@ -13,7 +13,7 @@ const userDataSchema = z.object({
       email_address: z.string().email(),
     })
   ).optional(),
-  username: z.string().optional(),
+  username: z.string().optional().nullable(),
   image_url: z.string().optional().nullable(),
   first_name: z.string().optional().nullable(),
   last_name: z.string().optional().nullable(),
@@ -108,11 +108,14 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Gera um nome de usuário a partir do email se não estiver definido
+        const generatedUsername = primaryEmail.split("@")[0];
+
         const user = await prisma.user.create({
           data: {
             clerkId: id,
             email: primaryEmail,
-            username: username || primaryEmail.split("@")[0],
+            username: username || generatedUsername,
             name: name || null,
             imageUrl: image_url || null,
           },
@@ -159,11 +162,14 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Gera um nome de usuário a partir do email se não estiver definido
+        const generatedUsername = primaryEmail.split("@")[0];
+
         const user = await prisma.user.update({
           where: { clerkId: id },
           data: {
             email: primaryEmail,
-            username: username || primaryEmail.split("@")[0],
+            username: username || generatedUsername,
             name: name || null,
             imageUrl: image_url || null,
           },
