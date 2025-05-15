@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getUserProfileByUsername } from "../data/get-profile";
 import UserBuildsGrid from "./components/user-builds-grid";
 import ProfileHeader from "../components/profile-header";
 
@@ -25,10 +24,12 @@ export default async function UserBuildsPage({ params, searchParams }: UserBuild
   const limit = searchParams.limit ? parseInt(searchParams.limit) : 9;
   const sort = searchParams.sort || 'newest';
 
-  // Fetch the user profile using the new data fetching function
-  const userProfile = await getUserProfileByUsername(username);
+  // Fetch the user
+  const user = await prisma.user.findUnique({
+    where: { username },
+  });
 
-  if (!userProfile) {
+  if (!user) {
     notFound();
   }
 
@@ -80,46 +81,39 @@ export default async function UserBuildsPage({ params, searchParams }: UserBuild
         <div className="container py-12 relative z-10">
           <div className="max-w-5xl mx-auto">
             {/* User Info */}
-            <ProfileHeader user={userProfile} />
+            <ProfileHeader user={user} />
 
-            {/* Builds Section */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold font-cinzel text-primary">
-                  {userProfile.username}'s Builds
-                </h2>
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/profile/${username}?sort=newest`}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      sort === 'newest'
-                        ? 'bg-primary/20 text-primary'
-                        : 'hover:bg-primary/10 hover:text-primary'
-                    }`}
-                  >
-                    Newest
-                  </Link>
-                  <Link
-                    href={`/profile/${username}?sort=popular`}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      sort === 'popular'
-                        ? 'bg-primary/20 text-primary'
-                        : 'hover:bg-primary/10 hover:text-primary'
-                    }`}
-                  >
-                    Most Popular
-                  </Link>
-                </div>
+            {/* Sort Options */}
+            <div className="flex justify-end mt-8 mb-6">
+              <div className="inline-flex rounded-md border border-primary/20 overflow-hidden">
+                <Link
+                  href={`/profile/${username}?sort=newest`}
+                  className={`px-3 py-1.5 text-sm ${sort === 'newest' ? 'bg-primary/20 text-primary' : 'bg-background/50 text-foreground/70 hover:bg-primary/10'}`}
+                >
+                  Newest
+                </Link>
+                <Link
+                  href={`/profile/${username}?sort=oldest`}
+                  className={`px-3 py-1.5 text-sm ${sort === 'oldest' ? 'bg-primary/20 text-primary' : 'bg-background/50 text-foreground/70 hover:bg-primary/10'}`}
+                >
+                  Oldest
+                </Link>
+                <Link
+                  href={`/profile/${username}?sort=popular`}
+                  className={`px-3 py-1.5 text-sm ${sort === 'popular' ? 'bg-primary/20 text-primary' : 'bg-background/50 text-foreground/70 hover:bg-primary/10'}`}
+                >
+                  Most Popular
+                </Link>
               </div>
-
-              {/* Builds Grid */}
-              <UserBuildsGrid
-                username={username}
-                page={page}
-                limit={limit}
-                sort={sort}
-              />
             </div>
+
+            {/* Builds Grid */}
+            <UserBuildsGrid
+              username={username}
+              page={page}
+              limit={limit}
+              sort={sort}
+            />
           </div>
         </div>
       </main>

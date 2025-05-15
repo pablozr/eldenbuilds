@@ -56,21 +56,21 @@ export default async function UserBuildsGrid({ username, page, limit, sort }: Us
                 </div>
               )}
             </div>
-
+            
             <div className="p-4">
               <h3 className="font-bold text-primary group-hover:text-primary/80 transition-colors mb-2 line-clamp-1">
                 {build.title}
               </h3>
-
+              
               {/* Creator info */}
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-6 w-6 rounded-full overflow-hidden bg-primary/10">
                   {build.user.imageUrl ? (
-                    <Image
-                      src={build.user.imageUrl}
-                      alt={build.user.username}
-                      width={24}
-                      height={24}
+                    <Image 
+                      src={build.user.imageUrl} 
+                      alt={build.user.username} 
+                      width={24} 
+                      height={24} 
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -81,7 +81,7 @@ export default async function UserBuildsGrid({ username, page, limit, sort }: Us
                 </div>
                 <span className="text-xs text-foreground/70">{build.user.username}</span>
               </div>
-
+              
               {/* Likes and comments count */}
               <div className="flex items-center gap-4 text-xs text-foreground/60">
                 <div className="flex items-center gap-1">
@@ -122,7 +122,7 @@ export default async function UserBuildsGrid({ username, page, limit, sort }: Us
           </Link>
         ))}
       </div>
-
+      
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-8">
@@ -138,13 +138,13 @@ export default async function UserBuildsGrid({ username, page, limit, sort }: Us
                 <path d="m15 18-6-6 6-6"/>
               </svg>
             </Link>
-
+            
             <div className="px-4 py-2 rounded-md bg-primary/10 border border-primary/20">
               <span className="text-sm">
                 Page {currentPage} of {totalPages}
               </span>
             </div>
-
+            
             <Link
               href={`/profile/${username}?page=${currentPage + 1}&limit=${limit}&sort=${sort}`}
               className={`w-10 h-10 rounded-md border border-primary/20 flex items-center justify-center ${

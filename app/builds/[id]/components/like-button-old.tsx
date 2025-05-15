@@ -3,9 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { toggleLike, checkLikeStatus } from '../actions/like';
-import { useServerAction } from '@/lib/hooks/useServerAction';
-import { z } from 'zod';
 
 interface LikeButtonProps {
   buildId: string;
@@ -18,69 +15,59 @@ export default function LikeButton({ buildId, initialLikeCount, initialLiked = f
   const router = useRouter();
   const [liked, setLiked] = useState(initialLiked);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Define schemas para validação
-  const buildIdSchema = z.object({
-    buildId: z.string(),
-  });
-
-  const likeResponseSchema = z.object({
-    liked: z.boolean(),
-  });
-
-  // Usar o hook useServerAction para verificar o status do like
-  const {
-    execute: executeCheckLikeStatus,
-  } = useServerAction({
-    input: buildIdSchema,
-    output: likeResponseSchema,
-    handler: checkLikeStatus,
-    onSuccess: (data) => {
-      setLiked(data.liked);
-    },
-    onError: (error) => {
-      console.error('Error checking like status:', error);
-    },
-  });
-
-  // Usar o hook useServerAction para alternar o like
-  const {
-    execute: executeToggleLike,
-    isLoading: isTogglingLike,
-    error: toggleLikeError
-  } = useServerAction({
-    input: buildIdSchema,
-    output: likeResponseSchema,
-    handler: toggleLike,
-    onSuccess: (data) => {
-      setLiked(data.liked);
-      setLikeCount(prev => data.liked ? prev + 1 : prev - 1);
-    },
-    onError: (error) => {
-      console.error('Error toggling like:', error);
-    },
-  });
-
-  // Verifica se o usuário já curtiu a build usando o server action
+  // Verifica se o usuário já curtiu a build
   useEffect(() => {
     if (!isSignedIn) return;
-    executeCheckLikeStatus({ buildId });
-  }, [buildId, isSignedIn, executeCheckLikeStatus]);
 
-  // Função para alternar o like usando o server action
-  const handleToggleLike = async () => {
+    const checkLikeStatus = async () => {
+      try {
+        const response = await fetch(`/api/builds/${buildId}/like`);
+        if (response.ok) {
+          const data = await response.json();
+          setLiked(data.liked);
+        }
+      } catch (error) {
+        console.error('Error checking like status:', error);
+      }
+    };
+
+    checkLikeStatus();
+  }, [buildId, isSignedIn]);
+
+  // Função para alternar o like
+  const toggleLike = async () => {
     if (!isSignedIn) {
       router.push('/sign-in');
       return;
     }
 
-    await executeToggleLike({ buildId });
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/builds/${buildId}/like`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle like');
+      }
+
+      const data = await response.json();
+      setLiked(data.liked);
+      setLikeCount(prev => data.liked ? prev + 1 : prev - 1);
+      router.refresh(); // Atualiza a contagem de curtidas na página
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <button
-      onClick={handleToggleLike}
-      disabled={isTogglingLike}
+      onClick={toggleLike}
+      disabled={isLoading}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
         liked
           ? 'bg-primary/20 text-primary border border-primary/30'

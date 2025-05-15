@@ -2,22 +2,109 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import { UserButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUserProfile } from "./data/get-profile";
+import { profileService } from "@/lib/services/profile-service";
 import ProfileHeader from "./components/profile-header";
 import ProfileStats from "@/app/profile/components/profile-stats";
 import ProfileBuilds from "@/app/profile/components/profile-builds";
 import ProfileSettings from "./components/profile-settings";
 
 export default async function ProfilePage() {
-  // Buscar o perfil do usuário usando a nova função de data fetching
-  const userProfile = await getCurrentUserProfile();
+  const { userId } = await auth();
+
+  // Redirecionar para a página de login se o usuário não estiver autenticado
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
+  // Buscar o usuário no banco de dados
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+  });
+
+  if (!user) {
+    return (
+      <div className="container py-12">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-primary mb-4">User Not Found</h1>
+          <p className="text-foreground/70 mb-6">
+            We couldn't find your user profile. Please try signing in again.
+          </p>
+          <Link
+            href="/sign-in"
+            className="px-4 py-2 rounded-md bg-primary text-background hover:bg-primary/90 font-medium transition-all duration-300"
+          >
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Buscar o perfil completo do usuário (incluindo bannerUrl)
+  const userProfile = await profileService.getUserProfile(user.id);
+
+  // Combinar os dados do usuário com os dados do perfil
+  const userWithProfile = {
+    ...user,
+    bannerUrl: userProfile?.bannerUrl || null,
+    bio: userProfile?.bio || null,
+    favoriteClass: userProfile?.favoriteClass || null,
+    favoriteWeapon: userProfile?.favoriteWeapon || null,
+  };
+
+  // Buscar estatísticas do usuário
+  const buildCount = await prisma.build.count({
+    where: { userId: user.id },
+  });
+
+  const publishedBuildCount = await prisma.build.count({
+    where: {
+      userId: user.id,
+      isPublished: true,
+    },
+  });
+
+  const likesReceived = await prisma.like.count({
+    where: {
+      build: {
+        userId: user.id,
+      },
+    },
+  });
+
+  const commentsReceived = await prisma.comment.count({
+    where: {
+      build: {
+        userId: user.id,
+      },
+    },
+  });
+
+  // Buscar build mais popular
+  const mostPopularBuild = await prisma.build.findFirst({
+    where: {
+      userId: user.id,
+      isPublished: true,
+    },
+    orderBy: {
+      likes: {
+        _count: 'desc',
+      },
+    },
+    include: {
+      _count: {
+        select: {
+          likes: true,
+        },
+      },
+    },
+  });
 
   // Buscar as builds do usuário (apenas as 3 mais recentes)
   const recentBuilds = await prisma.build.findMany({
     where: {
-      userId: userProfile.id,
+      userId: user.id,
       isPublished: true,
     },
     orderBy: {
@@ -50,15 +137,16 @@ export default async function ProfilePage() {
             <Link href="/" className="mr-6 flex items-center space-x-2 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-primary/20 rounded-full blur-md opacity-0 group-hover:opacity-70 transition-opacity duration-500"></div>
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/30 to-transparent rounded-full blur-lg opacity-0 group-hover:opacity-60 transition-opacity duration-500 animate-pulse"></div>
                 <Image
                   src="/pic2.webp"
                   alt="Elden Ring Icon"
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 object-contain"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 relative z-10 transition-transform duration-500 group-hover:scale-105 object-contain rounded-full"
                 />
               </div>
-              <span className="font-bold text-foreground group-hover:text-primary transition-colors duration-300 relative">
+              <span className="font-cinzel font-bold text-primary text-xl relative">
                 Elden Ring Builds
                 <span className="absolute -bottom-1 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
               </span>
@@ -73,18 +161,6 @@ export default async function ProfilePage() {
                 <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover:w-full transition-all duration-300"></span>
               </Link>
             </nav>
-          </div>
-          <div className="flex flex-1 items-center justify-end">
-            <div className="flex items-center gap-3">
-              <UserButton
-                signInUrl="/sign-in"
-                appearance={{
-                  elements: {
-                    userButtonAvatarBox: "border-2 border-primary/50 hover:border-primary transition-colors",
-                  }
-                }}
-              />
-            </div>
           </div>
         </div>
       </header>
@@ -101,18 +177,23 @@ export default async function ProfilePage() {
           <div className="max-w-5xl mx-auto">
             {/* Profile Header */}
             <ProfileHeader
-              user={userProfile}
+              user={userWithProfile}
             />
+
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
               <div className="lg:col-span-2 space-y-8">
                 {/* Profile Stats */}
                 <ProfileStats
-                  buildCount={userProfile.stats.buildCount}
-                  publishedBuildCount={userProfile.stats.publishedBuildCount}
-                  likesReceived={userProfile.stats.likesReceived}
-                  commentsReceived={userProfile.stats.commentsReceived}
-                  mostPopularBuild={userProfile.stats.mostPopularBuild}
+                  buildCount={buildCount}
+                  publishedBuildCount={publishedBuildCount}
+                  likesReceived={likesReceived}
+                  commentsReceived={commentsReceived}
+                  mostPopularBuild={mostPopularBuild ? {
+                    id: mostPopularBuild.id,
+                    title: mostPopularBuild.title,
+                    likeCount: mostPopularBuild._count.likes,
+                  } : null}
                 />
 
                 {/* Recent Builds */}
@@ -121,14 +202,14 @@ export default async function ProfilePage() {
                     ...build,
                     createdAt: build.createdAt ? build.createdAt.toISOString() : '',
                   }))}
-                  username={userProfile.username}
+                  username={user.username}
                 />
               </div>
 
               {/* Profile Settings */}
               <div className="lg:col-span-1">
                 <ProfileSettings
-                  user={userProfile}
+                  user={userWithProfile}
                 />
               </div>
             </div>
@@ -156,3 +237,6 @@ export default async function ProfilePage() {
     </div>
   );
 }
+
+
+

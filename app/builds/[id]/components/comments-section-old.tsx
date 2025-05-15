@@ -5,9 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { addComment, deleteComment, editComment } from '../actions/comment';
-import { useServerAction } from '@/lib/hooks/useServerAction';
-import { z } from 'zod';
+import { withCsrfToken } from '@/app/components/csrf-provider';
 
 interface Comment {
   id: string;
@@ -34,43 +32,7 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
 
-  // Define schemas para validação
-  const commentInputSchema = z.object({
-    content: z.string().min(1, "Comment cannot be empty").max(1000, "Comment is too long"),
-    buildId: z.string(),
-  });
-
-  const commentOutputSchema = z.object({
-    id: z.string(),
-    content: z.string(),
-    createdAt: z.string(),
-    user: z.object({
-      id: z.string(),
-      username: z.string(),
-      imageUrl: z.string().nullable(),
-    }),
-  });
-
-  // Usar o hook useServerAction para adicionar comentários
-  const {
-    execute: executeAddComment,
-    isLoading: isAddingComment,
-    error: addCommentError,
-    validationErrors: addCommentValidationErrors
-  } = useServerAction({
-    input: commentInputSchema,
-    output: commentOutputSchema,
-    handler: addComment,
-    onSuccess: (data) => {
-      setComments([data, ...comments]);
-      setNewComment('');
-    },
-    onError: (error) => {
-      console.error('Error adding comment:', error);
-    },
-  });
-
-  // Função para adicionar um comentário usando server action
+  // Função para adicionar um comentário
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignedIn) {
@@ -80,90 +42,82 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
 
     if (!newComment.trim()) return;
 
-    await executeAddComment({
-      content: newComment,
-      buildId,
-    });
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/builds/${buildId}/comments`, {
+        method: 'POST',
+        headers: withCsrfToken({
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({ content: newComment }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add comment');
+      }
+
+      const addedComment = await response.json();
+      setComments([addedComment, ...comments]);
+      setNewComment('');
+      router.refresh(); // Atualiza a contagem de comentários
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  // Define schemas para edição de comentários
-  const editCommentInputSchema = z.object({
-    commentId: z.string(),
-    content: z.string().min(1, "Comment cannot be empty").max(1000, "Comment is too long"),
-  });
-
-  // Usar o hook useServerAction para editar comentários
-  const {
-    execute: executeEditComment,
-    isLoading: isEditingComment,
-    error: editCommentError,
-    validationErrors: editCommentValidationErrors
-  } = useServerAction({
-    input: editCommentInputSchema,
-    output: commentOutputSchema,
-    handler: editComment,
-    onSuccess: (data) => {
-      setComments(
-        comments.map((comment) =>
-          comment.id === editingCommentId ? data : comment
-        )
-      );
-      setEditingCommentId(null);
-      setEditContent('');
-    },
-    onError: (error) => {
-      console.error('Error updating comment:', error);
-    },
-  });
 
   // Função para editar um comentário
   const handleEditComment = async (commentId: string) => {
     if (!editContent.trim()) return;
 
-    await executeEditComment({
-      commentId,
-      content: editContent,
-    });
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'PUT',
+        headers: withCsrfToken({
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({ content: editContent }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update comment');
+      }
+
+      const updatedComment = await response.json();
+      setComments(
+        comments.map((comment) =>
+          comment.id === commentId ? updatedComment : comment
+        )
+      );
+      setEditingCommentId(null);
+    } catch (error) {
+      console.error('Error updating comment:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Define schemas para exclusão de comentários
-  const deleteCommentInputSchema = z.object({
-    commentId: z.string(),
-  });
-
-  const deleteCommentOutputSchema = z.object({
-    success: z.boolean(),
-  });
-
-  // Usar o hook useServerAction para excluir comentários
-  const {
-    execute: executeDeleteComment,
-    isLoading: isDeletingComment,
-    error: deleteCommentError
-  } = useServerAction({
-    input: deleteCommentInputSchema,
-    output: deleteCommentOutputSchema,
-    handler: deleteComment,
-    onSuccess: (data) => {
-      if (data.success) {
-        setComments(comments.filter((comment) => comment.id !== commentIdToDelete));
-        setCommentIdToDelete(null);
-      }
-    },
-    onError: (error) => {
-      console.error('Error deleting comment:', error);
-    },
-  });
-
-  // Estado para armazenar o ID do comentário a ser excluído
-  const [commentIdToDelete, setCommentIdToDelete] = useState<string | null>(null);
-
-  // Função para excluir um comentário usando server action
+  // Função para excluir um comentário
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
 
-    setCommentIdToDelete(commentId);
-    await executeDeleteComment({ commentId });
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: withCsrfToken(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete comment');
+      }
+
+      setComments(comments.filter((comment) => comment.id !== commentId));
+      router.refresh(); // Atualiza a contagem de comentários
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
   };
 
   return (
@@ -206,21 +160,11 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
               <div className="flex justify-end mt-2">
                 <button
                   type="submit"
-                  disabled={isAddingComment || !newComment.trim()}
+                  disabled={isSubmitting || !newComment.trim()}
                   className="px-4 py-2 rounded-md bg-primary text-background hover:bg-primary/90 font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isAddingComment ? 'Posting...' : 'Post Comment'}
+                  {isSubmitting ? 'Posting...' : 'Post Comment'}
                 </button>
-                {addCommentError && (
-                  <p className="text-red-500 text-sm mt-2">{addCommentError}</p>
-                )}
-                {addCommentValidationErrors && addCommentValidationErrors.length > 0 && (
-                  <div className="text-red-500 text-sm mt-2">
-                    {addCommentValidationErrors.map((error, index) => (
-                      <p key={index}>{error.message}</p>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -310,21 +254,11 @@ export default function CommentsSection({ buildId, initialComments }: CommentsSe
                         </button>
                         <button
                           onClick={() => handleEditComment(comment.id)}
-                          disabled={isEditingComment || !editContent.trim()}
+                          disabled={isSubmitting || !editContent.trim()}
                           className="px-3 py-1 rounded-md bg-primary text-background hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isEditingComment ? 'Saving...' : 'Save'}
+                          Save
                         </button>
-                        {editCommentError && (
-                          <p className="text-red-500 text-sm mt-2">{editCommentError}</p>
-                        )}
-                        {editCommentValidationErrors && editCommentValidationErrors.length > 0 && (
-                          <div className="text-red-500 text-sm mt-2">
-                            {editCommentValidationErrors.map((error, index) => (
-                              <p key={index}>{error.message}</p>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ) : (
