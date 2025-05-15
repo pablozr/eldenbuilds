@@ -9,6 +9,7 @@ export type BuildFilter = {
   maxLevel?: number;
   userId?: string;
   isPublished?: boolean;
+  stats?: string[];
 };
 
 export type BuildSortOption = 'newest' | 'oldest' | 'popular' | 'comments';
@@ -53,14 +54,14 @@ export const buildService = {
     // Adiciona filtro por nível se especificado
     if (filter.minLevel !== undefined) {
       where.level = {
-        ...where.level,
+        ...(typeof where.level === 'object' && where.level !== null ? where.level : {}),
         gte: filter.minLevel,
       };
     }
 
     if (filter.maxLevel !== undefined) {
       where.level = {
-        ...where.level,
+        ...(typeof where.level === 'object' && where.level !== null ? where.level : {}),
         lte: filter.maxLevel,
       };
     }
@@ -86,6 +87,59 @@ export const buildService = {
           },
         },
       ];
+    }
+
+    // Adiciona filtros avançados por estatísticas
+    if (filter.stats && filter.stats.length > 0) {
+      const statFilters: Prisma.BuildWhereInput[] = [];
+
+      filter.stats.forEach(stat => {
+        switch (stat) {
+          case 'high-vigor':
+            statFilters.push({ vigor: { gte: 40 } });
+            break;
+          case 'high-strength':
+            statFilters.push({ strength: { gte: 40 } });
+            break;
+          case 'high-dexterity':
+            statFilters.push({ dexterity: { gte: 40 } });
+            break;
+          case 'high-intelligence':
+            statFilters.push({ intelligence: { gte: 40 } });
+            break;
+          case 'high-faith':
+            statFilters.push({ faith: { gte: 40 } });
+            break;
+          case 'high-arcane':
+            statFilters.push({ arcane: { gte: 40 } });
+            break;
+          case 'balanced':
+            // Builds com distribuição equilibrada (diferença máxima de 10 pontos entre as estatísticas principais)
+            statFilters.push({
+              AND: [
+                { strength: { gte: 20 } },
+                { dexterity: { gte: 20 } },
+                { intelligence: { gte: 20 } },
+                { faith: { gte: 20 } },
+              ]
+            });
+            break;
+        }
+      });
+
+      if (statFilters.length > 0) {
+        // Se já existir um OR, precisamos combiná-lo com os novos filtros
+        if (where.OR) {
+          const existingOr = Array.isArray(where.OR) ? where.OR : [where.OR];
+          where.AND = [
+            { OR: existingOr },
+            { OR: statFilters }
+          ];
+          delete where.OR;
+        } else {
+          where.OR = statFilters;
+        }
+      }
     }
 
     // Define a ordenação
@@ -303,3 +357,4 @@ export const buildService = {
     });
   },
 };
+

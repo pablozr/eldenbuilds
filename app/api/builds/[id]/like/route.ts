@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { likeService } from "@/lib/services/like-service";
+import { prisma } from "@/lib/prisma";
 
 // POST to like/unlike a build
 export async function POST(
@@ -8,8 +9,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
@@ -18,10 +18,64 @@ export async function POST(
       );
     }
 
-    // Toggle like using the service
-    const result = await likeService.toggleLike(params.id, userId);
+    const buildId = params?.id;
 
-    return NextResponse.json(result);
+    // Get the user from the database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the build exists
+    const build = await prisma.build.findUnique({
+      where: {
+        id: buildId,
+      },
+    });
+
+    if (!build) {
+      return NextResponse.json(
+        { error: "Build not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the user has already liked the build
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_buildId: {
+          userId: dbUser.id,
+          buildId,
+        },
+      },
+    });
+
+    // If the user has already liked the build, remove the like
+    if (existingLike) {
+      await prisma.like.delete({
+        where: {
+          id: existingLike.id,
+        },
+      });
+
+      return NextResponse.json({ liked: false });
+    }
+
+    // Otherwise, create a new like
+    await prisma.like.create({
+      data: {
+        userId: dbUser.id,
+        buildId,
+      },
+    });
+
+    return NextResponse.json({ liked: true });
   } catch (error) {
     console.error("Error toggling like:", error);
 
@@ -49,8 +103,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
@@ -59,10 +112,31 @@ export async function GET(
       );
     }
 
-    // Check if the user has liked the build using the service
-    const liked = await likeService.hasLiked(params.id, userId);
+    const buildId = params?.id;
 
-    return NextResponse.json({ liked });
+    // Get the user from the database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the user has already liked the build
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_buildId: {
+          userId: dbUser.id,
+          buildId,
+        },
+      },
+    });
+
+    return NextResponse.json({ liked: !!existingLike });
   } catch (error) {
     console.error("Error checking like:", error);
 

@@ -22,12 +22,15 @@ export async function GET(req: NextRequest) {
     const maxLevel = searchParams.get("maxLevel") ? parseInt(searchParams.get("maxLevel")!) : undefined;
     const userId = searchParams.get("userId") || undefined;
 
+    // Parâmetros de filtro avançado
+    const stats = searchParams.get("stats") ? searchParams.get("stats")!.split(",") : undefined;
+
     // Parâmetro de ordenação
     const sort = (searchParams.get("sort") as BuildSortOption) || "newest";
 
     // Busca as builds com os filtros, ordenação e paginação
     const result = await buildService.getBuilds(
-      { search, buildType, minLevel, maxLevel, userId, isPublished: true },
+      { search, buildType, minLevel, maxLevel, userId, stats, isPublished: true },
       sort,
       { page, limit }
     );

@@ -37,6 +37,12 @@ export default async function Home() {
                 Create Build
                 <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover:w-full transition-all duration-300"></span>
               </Link>
+              {userId && (
+                <Link href="/profile" className="px-3 py-1.5 rounded-md transition-all duration-300 hover:text-primary hover:bg-primary/5 backdrop-blur-sm relative group">
+                  My Profile
+                  <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover:w-full transition-all duration-300"></span>
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex flex-1 items-center justify-end">

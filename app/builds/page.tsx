@@ -6,6 +6,7 @@ import { buildService } from "@/lib/services/build-service";
 import { Suspense } from "react";
 import BuildsList from "./components/builds-list";
 import BuildsLoading from "./components/builds-loading";
+import AdvancedFilters from "./components/advanced-filters";
 
 export default async function BuildsPage({
   searchParams,
@@ -13,17 +14,19 @@ export default async function BuildsPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const { userId } = await auth();
+  const params = searchParams;
 
   // Get pagination parameters from URL
-  const page = typeof searchParams.page === 'string' ? parseInt(searchParams.page) : 1;
-  const limit = typeof searchParams.limit === 'string' ? parseInt(searchParams.limit) : 9;
+  const page = typeof params.page === 'string' ? parseInt(params.page) : 1;
+  const limit = typeof params.limit === 'string' ? parseInt(params.limit) : 9;
 
   // Get filter parameters from URL
-  const buildType = typeof searchParams.buildType === 'string' ? searchParams.buildType : undefined;
-  const search = typeof searchParams.search === 'string' ? searchParams.search : undefined;
-  const minLevel = typeof searchParams.minLevel === 'string' ? parseInt(searchParams.minLevel) : undefined;
-  const maxLevel = typeof searchParams.maxLevel === 'string' ? parseInt(searchParams.maxLevel) : undefined;
-  const sort = typeof searchParams.sort === 'string' ? searchParams.sort : 'newest';
+  const buildType = typeof params.buildType === 'string' ? params.buildType : undefined;
+  const search = typeof params.search === 'string' ? params.search : undefined;
+  const minLevel = typeof params.minLevel === 'string' ? parseInt(params.minLevel) : undefined;
+  const maxLevel = typeof params.maxLevel === 'string' ? parseInt(params.maxLevel) : undefined;
+  const sort = typeof params.sort === 'string' ? params.sort : 'newest';
+  const stats = typeof params.stats === 'string' ? params.stats.split(',') : undefined;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -57,6 +60,12 @@ export default async function BuildsPage({
                 Create Build
                 <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover:w-full transition-all duration-300"></span>
               </Link>
+              {userId && (
+                <Link href="/profile" className="px-3 py-1.5 rounded-md transition-all duration-300 hover:text-primary hover:bg-primary/5 backdrop-blur-sm relative group">
+                  My Profile
+                  <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-primary group-hover:w-full transition-all duration-300"></span>
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex flex-1 items-center justify-end">
@@ -169,113 +178,12 @@ export default async function BuildsPage({
                 </div>
 
                 <div className="p-4">
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-foreground/90 mb-3 uppercase tracking-wider">Build Type</h4>
-                    <div className="space-y-2">
-                      {[
-                        { name: "Bleed", icon: "🩸" },
-                        { name: "Magic", icon: "✨" },
-                        { name: "Dexterity", icon: "🗡️" },
-                        { name: "Strength", icon: "🔨" },
-                        { name: "Faith", icon: "🌟" },
-                        { name: "Frost", icon: "❄️" },
-                        { name: "Arcane", icon: "🔮" },
-                        { name: "Hybrid", icon: "⚔️" }
-                      ].map((type) => (
-                        <div key={type.name} className="flex items-center">
-                          <Link
-                            href={`/builds?buildType=${type.name}`}
-                            className={`flex items-center gap-2 cursor-pointer group w-full ${buildType === type.name ? 'text-primary' : 'text-foreground/80'}`}
-                          >
-                            <span className={`w-4 h-4 border border-primary/30 rounded flex items-center justify-center bg-background/50 ${buildType === type.name ? 'bg-primary/20 border-primary' : ''} transition-colors`}>
-                              {buildType === type.name && (
-                                <svg className="w-3 h-3 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              )}
-                            </span>
-                            <span className="group-hover:text-primary transition-colors flex-1 flex items-center gap-1.5">
-                              <span className="text-sm">{type.icon}</span> {type.name}
-                            </span>
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-foreground/90 mb-3 uppercase tracking-wider">Level Range</h4>
-                    <div className="space-y-2">
-                      {[
-                        { range: "1-60", min: 1, max: 60 },
-                        { range: "61-120", min: 61, max: 120 },
-                        { range: "121-150", min: 121, max: 150 },
-                        { range: "151+", min: 151, max: 999 }
-                      ].map((level) => {
-                        const isActive = minLevel === level.min && maxLevel === level.max;
-                        return (
-                          <div key={level.range} className="flex items-center">
-                            <Link
-                              href={`/builds?minLevel=${level.min}&maxLevel=${level.max}`}
-                              className={`flex items-center gap-2 cursor-pointer group w-full ${isActive ? 'text-primary' : 'text-foreground/80'}`}
-                            >
-                              <span className={`w-4 h-4 border border-primary/30 rounded flex items-center justify-center bg-background/50 ${isActive ? 'bg-primary/20 border-primary' : ''} transition-colors`}>
-                                {isActive && (
-                                  <svg className="w-3 h-3 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                )}
-                              </span>
-                              <span className="group-hover:text-primary transition-colors flex-1">
-                                Level {level.range}
-                              </span>
-                            </Link>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <h4 className="text-sm font-semibold text-foreground/90 mb-3 uppercase tracking-wider">Sort By</h4>
-                    <div className="space-y-2">
-                      {[
-                        { name: "Newest", value: "newest" },
-                        { name: "Oldest", value: "oldest" },
-                        { name: "Most Popular", value: "popular" },
-                        { name: "Most Comments", value: "comments" }
-                      ].map((sortOption) => (
-                        <div key={sortOption.value} className="flex items-center">
-                          <Link
-                            href={`/builds?sort=${sortOption.value}`}
-                            className={`flex items-center gap-2 cursor-pointer group w-full ${sort === sortOption.value ? 'text-primary' : 'text-foreground/80'}`}
-                          >
-                            <span className={`w-4 h-4 border border-primary/30 rounded flex items-center justify-center bg-background/50 ${sort === sortOption.value ? 'bg-primary/20 border-primary' : ''} transition-colors`}>
-                              {sort === sortOption.value && (
-                                <svg className="w-3 h-3 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              )}
-                            </span>
-                            <span className="group-hover:text-primary transition-colors flex-1">
-                              {sortOption.name}
-                            </span>
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Link
-                    href="/builds"
-                    className="w-full py-2 px-4 rounded-md border border-primary/30 hover:bg-primary/10 font-medium transition-all duration-300 text-primary text-sm flex items-center justify-center gap-2"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 3v18h18"/>
-                      <path d="M18.4 9a9 9 0 0 0-6.4-3H18V2.4"/>
-                    </svg>
-                    Reset Filters
-                  </Link>
+                  <AdvancedFilters
+                    currentBuildType={buildType}
+                    currentMinLevel={minLevel}
+                    currentMaxLevel={maxLevel}
+                    currentSort={sort}
+                  />
                 </div>
               </div>
             </aside>
@@ -291,6 +199,7 @@ export default async function BuildsPage({
                   minLevel={minLevel}
                   maxLevel={maxLevel}
                   sort={sort}
+                  stats={stats}
                 />
               </Suspense>
             </div>

@@ -33,6 +33,85 @@ export const userService = {
   },
 
   /**
+   * Busca um usuário pelo ID com estatísticas detalhadas
+   */
+  async getUserWithStats(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    // Contagem de builds
+    const buildCount = await prisma.build.count({
+      where: { userId: user.id },
+    });
+
+    // Contagem de builds publicadas
+    const publishedBuildCount = await prisma.build.count({
+      where: {
+        userId: user.id,
+        isPublished: true,
+      },
+    });
+
+    // Total de curtidas recebidas
+    const likesReceived = await prisma.like.count({
+      where: {
+        build: {
+          userId: user.id,
+        },
+      },
+    });
+
+    // Total de comentários recebidos
+    const commentsReceived = await prisma.comment.count({
+      where: {
+        build: {
+          userId: user.id,
+        },
+      },
+    });
+
+    // Build mais popular
+    const mostPopularBuild = await prisma.build.findFirst({
+      where: {
+        userId: user.id,
+        isPublished: true,
+      },
+      orderBy: {
+        likes: {
+          _count: 'desc',
+        },
+      },
+      include: {
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ...user,
+      stats: {
+        buildCount,
+        publishedBuildCount,
+        likesReceived,
+        commentsReceived,
+        mostPopularBuild: mostPopularBuild ? {
+          id: mostPopularBuild.id,
+          title: mostPopularBuild.title,
+          likeCount: mostPopularBuild._count.likes,
+        } : null,
+      },
+    };
+  },
+
+  /**
    * Busca um usuário pelo nome de usuário
    */
   async getUserByUsername(username: string) {
@@ -78,6 +157,23 @@ export const userService = {
   ) {
     return prisma.user.update({
       where: { clerkId },
+      data,
+    });
+  },
+
+  /**
+   * Atualiza o perfil de um usuário
+   */
+  async updateUserProfile(
+    userId: string,
+    data: {
+      bio?: string;
+      favoriteClass?: string;
+      favoriteWeapon?: string;
+    }
+  ) {
+    return prisma.user.update({
+      where: { id: userId },
       data,
     });
   },

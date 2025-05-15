@@ -4,10 +4,13 @@ import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { buildService } from "@/lib/services/build-service";
 import { notFound } from "next/navigation";
+import CommentsSection from "./components/comments-section";
+import LikeButton from "./components/like-button";
+import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, Key } from "react";
 
 export default async function BuildDetailPage({ params }: { params: { id: string } }) {
   const { userId } = await auth();
-  const buildId = params.id;
+  const buildId = params?.id;
 
   // Fetch the build from the database
   const build = await buildService.getBuildById(buildId);
@@ -199,18 +202,24 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                   <div className="flex flex-col">
                     <span className="font-medium">{build.user.username}</span>
                     <span className="text-xs text-foreground/60">
-                      Created on {new Date(build.createdAt).toLocaleDateString('en-US', {
+                      Created on {build.createdAt ? new Date(build.createdAt).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric'
-                      })}
+                      }) : 'Unknown date'}
                       {build._count && (
                         <span className="ml-2">
-                          • {build._count.likes} {build._count.likes === 1 ? 'like' : 'likes'}
                           • {build._count.comments} {build._count.comments === 1 ? 'comment' : 'comments'}
                         </span>
                       )}
                     </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-4">
+                    <LikeButton
+                      buildId={buildId}
+                      initialLikeCount={build._count?.likes || 0}
+                    />
                   </div>
                 </div>
 
@@ -250,7 +259,7 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                     </h3>
                     {weapons.length > 0 ? (
                       <ul className="space-y-2">
-                        {weapons.map((weapon, index) => (
+                        {weapons.map((weapon: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
                           <li key={index} className="flex items-center gap-2 text-foreground/80">
                             <span className="h-1.5 w-1.5 rounded-full bg-primary/70"></span>
                             {weapon}
@@ -271,7 +280,7 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                     </h3>
                     {armor.length > 0 ? (
                       <ul className="space-y-2">
-                        {armor.map((item, index) => (
+                        {armor.map((item: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
                           <li key={index} className="flex items-center gap-2 text-foreground/80">
                             <span className="h-1.5 w-1.5 rounded-full bg-primary/70"></span>
                             {item}
@@ -297,7 +306,7 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                     </h3>
                     {talismans.length > 0 ? (
                       <ul className="space-y-2">
-                        {talismans.map((talisman, index) => (
+                        {talismans.map((talisman: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
                           <li key={index} className="flex items-center gap-2 text-foreground/80">
                             <span className="h-1.5 w-1.5 rounded-full bg-primary/70"></span>
                             {talisman}
@@ -319,7 +328,7 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                     </h3>
                     {spells.length > 0 ? (
                       <ul className="space-y-2">
-                        {spells.map((spell, index) => (
+                        {spells.map((spell: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
                           <li key={index} className="flex items-center gap-2 text-foreground/80">
                             <span className="h-1.5 w-1.5 rounded-full bg-primary/70"></span>
                             {spell}
@@ -331,6 +340,17 @@ export default async function BuildDetailPage({ params }: { params: { id: string
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="mt-8">
+                <CommentsSection 
+                  buildId={buildId} 
+                  initialComments={build.comments.map(comment => ({
+                    ...comment,
+                    createdAt: comment.createdAt ? comment.createdAt.toISOString() : '',
+                  }))} 
+                />
               </div>
             </div>
 
@@ -612,3 +632,5 @@ export default async function BuildDetailPage({ params }: { params: { id: string
     </div>
   );
 }
+
+

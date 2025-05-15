@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { commentService } from "@/lib/services/comment-service";
 import { commentFormSchema } from "@/lib/validations/build";
+import { prisma } from "@/lib/prisma";
 
 // GET comments for a build
 export async function GET(
@@ -27,8 +28,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
@@ -38,15 +38,57 @@ export async function POST(
     }
 
     const body = await req.json();
+    const buildId = params.id;
 
     // Validate the request body
     const validatedData = commentFormSchema.parse({
       ...body,
-      buildId: params.id,
+      buildId,
     });
 
-    // Create the comment using the service
-    const comment = await commentService.createComment(validatedData, userId);
+    // Get the user from the database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the build exists
+    const build = await prisma.build.findUnique({
+      where: {
+        id: buildId,
+      },
+    });
+
+    if (!build) {
+      return NextResponse.json(
+        { error: "Build not found" },
+        { status: 404 }
+      );
+    }
+
+    // Create the comment
+    const comment = await prisma.comment.create({
+      data: {
+        content: validatedData.content,
+        userId: dbUser.id,
+        buildId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            imageUrl: true,
+          },
+        },
+      },
+    });
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

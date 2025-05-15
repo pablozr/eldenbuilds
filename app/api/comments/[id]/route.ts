@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { commentService } from "@/lib/services/comment-service";
+import { prisma } from "@/lib/prisma";
 
 // PUT (update) a comment
 export async function PUT(
@@ -8,8 +9,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
@@ -19,6 +19,7 @@ export async function PUT(
     }
 
     const body = await req.json();
+    const commentId = params.id;
 
     if (!body.content || typeof body.content !== "string" || body.content.trim() === "") {
       return NextResponse.json(
@@ -27,8 +28,52 @@ export async function PUT(
       );
     }
 
-    // Update the comment using the service
-    const updatedComment = await commentService.updateComment(params.id, body.content, userId);
+    // Get the user from the database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Find the comment
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      return NextResponse.json(
+        { error: "Comment not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the user is the author of the comment
+    if (comment.userId !== dbUser.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Update the comment
+    const updatedComment = await prisma.comment.update({
+      where: { id: commentId },
+      data: { content: body.content },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            imageUrl: true,
+          },
+        },
+      },
+    });
 
     return NextResponse.json(updatedComment);
   } catch (error) {
@@ -59,8 +104,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await currentUser();
-    const userId = user?.id;
+    const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json(
@@ -69,8 +113,44 @@ export async function DELETE(
       );
     }
 
-    // Delete the comment using the service
-    await commentService.deleteComment(params.id, userId);
+    const commentId = params.id;
+
+    // Get the user from the database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Find the comment
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      return NextResponse.json(
+        { error: "Comment not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if the user is the author of the comment
+    if (comment.userId !== dbUser.id) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Delete the comment
+    await prisma.comment.delete({
+      where: { id: commentId },
+    });
 
     return NextResponse.json({ message: "Comment deleted successfully" });
   } catch (error) {
