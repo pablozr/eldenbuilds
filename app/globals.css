@@ -1,42 +1,95 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Elden Ring inspired light theme */
+    --background: 36 33% 97%;
+    --foreground: 220 14% 10%;
+
+    --card: 36 33% 97%;
+    --card-foreground: 220 14% 10%;
+
+    --popover: 36 33% 97%;
+    --popover-foreground: 220 14% 10%;
+
+    --primary: 36 40% 50%;  /* Elden Ring gold */
+    --primary-foreground: 220 14% 10%;
+
+    --secondary: 220 14% 90%;
+    --secondary-foreground: 220 14% 10%;
+
+    --muted: 220 14% 90%;
+    --muted-foreground: 220 14% 40%;
+
+    --accent: 36 40% 50%;  /* Elden Ring gold */
+    --accent-foreground: 220 14% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 14% 80%;
+    --input: 220 14% 80%;
+    --ring: 36 40% 50%;  /* Elden Ring gold */
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Elden Ring inspired dark theme */
+    --background: 220 14% 10%;  /* Dark background */
+    --foreground: 36 33% 97%;
+
+    --card: 220 14% 13%;
+    --card-foreground: 36 33% 97%;
+
+    --popover: 220 14% 10%;
+    --popover-foreground: 36 33% 97%;
+
+    --primary: 36 40% 50%;  /* Elden Ring gold */
+    --primary-foreground: 220 14% 10%;
+
+    --secondary: 220 14% 16%;
+    --secondary-foreground: 36 33% 97%;
+
+    --muted: 220 14% 16%;
+    --muted-foreground: 36 33% 70%;
+
+    --accent: 36 40% 50%;  /* Elden Ring gold */
+    --accent-foreground: 220 14% 10%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 36 33% 97%;
+
+    --border: 220 14% 20%;
+    --input: 220 14% 20%;
+    --ring: 36 40% 50%;  /* Elden Ring gold */
   }
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  /* Elden Ring specific styling */
+  .font-cinzel {
+    font-family: var(--font-cinzel);
+  }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+  /* Gold border effect for Elden Ring style elements */
+  .elden-border {
+    @apply border border-primary/40 shadow-[0_0_15px_rgba(200,170,110,0.15)];
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+  /* Elden Ring style button */
+  .elden-button {
+    @apply px-6 py-2 bg-primary/10 border border-primary/30 text-primary font-cinzel
+           hover:bg-primary/20 transition-colors duration-300 rounded-md;
   }
 }

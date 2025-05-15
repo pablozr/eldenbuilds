@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
+}
+
+// Models for Elden Ring Builds Forum
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  username      String    @unique
+  email         String    @unique
+  name          String?
+  imageUrl      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  builds        Build[]
+  comments      Comment[]
+  likes         Like[]
+
+  @@schema("public")
+}
+
+model Build {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  level         Int
+  buildType     String?   // Tipo de build (bleeding, magic, dexterity, frost, etc.)
+
+  // Character stats
+  vigor         Int
+  mind          Int
+  endurance     Int
+  strength      Int
+  dexterity     Int
+  intelligence  Int
+  faith         Int
+  arcane        Int
+
+  // Equipment
+  weapons       String[]
+  armor         String[]
+  talismans     String[]
+  spells        String[]
+
+  // Meta
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isPublished   Boolean   @default(true)
+
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments      Comment[]
+  likes         Like[]
+
+  @@index([userId])
+  @@index([buildType])
+  @@schema("public")
+}
+
+model Comment {
+  id            String    @id @default(cuid())
+  content       String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  buildId       String
+  build         Build     @relation(fields: [buildId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([buildId])
+  @@schema("public")
+}
+
+model Like {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  buildId       String
+  build         Build     @relation(fields: [buildId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, buildId])
+  @@index([userId])
+  @@index([buildId])
+  @@schema("public")
+}

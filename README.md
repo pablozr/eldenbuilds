@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Elden Ring Builds Forum
+
+A community platform for sharing and discovering Elden Ring character builds.
+
+## Features
+
+- Create and share your Elden Ring character builds
+- Browse builds with filtering and sorting options
+- Comment on and like builds
+- User authentication with Clerk
+- Responsive design with Elden Ring-inspired aesthetics
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: Clerk
+- **Storage**: Supabase Storage
+- **Deployment**: Vercel (frontend), Supabase (database)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ and npm
+- Supabase account (for database)
+- Clerk account (for authentication)
+
+### Environment Setup
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/elden-builds.git
+cd elden-builds
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Copy the example environment file and update it with your credentials:
+
+```bash
+cp .env.example .env
+```
+
+4. Configure Supabase:
+   - Create a new project in Supabase
+   - Get your Supabase URL and anon key from the project settings
+   - Update the `.env` file with your Supabase credentials
+   - Create the database tables using the SQL script in `scripts/create-tables.sql`
+
+5. Configure Clerk:
+   - Create a new project in Clerk
+   - Get your Clerk publishable key and secret key
+   - Update the `.env` file with your Clerk credentials
+
+6. Configure Prisma to use Supabase:
+   - Update the `DATABASE_URL` and `DIRECT_URL` in the `.env` file with your Supabase connection strings
+   - Generate the Prisma client:
+     ```bash
+     npm run prisma:generate
+     ```
+
+7. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database Schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application uses the following database models:
 
-## Learn More
+- **User**: User information synchronized from Clerk
+- **Build**: Character builds with stats, equipment, and metadata
+- **Comment**: Comments on builds
+- **Like**: Likes on builds
 
-To learn more about Next.js, take a look at the following resources:
+## API Routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The API follows RESTful conventions:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `GET /api/builds`: List all builds with filtering and pagination
+- `POST /api/builds`: Create a new build
+- `GET /api/builds/:id`: Get a specific build
+- `PUT /api/builds/:id`: Update a build
+- `DELETE /api/builds/:id`: Delete a build
+- `POST /api/builds/:id/like`: Like/unlike a build
+- `GET /api/builds/:id/comments`: Get comments for a build
+- `POST /api/builds/:id/comments`: Add a comment to a build
 
-## Deploy on Vercel
+## Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
